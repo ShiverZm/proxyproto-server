@@ -25,6 +25,7 @@ class Server {
   enum ConnState {
     kDisconnected,
     kConnected,
+    kSend,
   };
 
   struct Conn {

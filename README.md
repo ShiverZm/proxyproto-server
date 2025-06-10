@@ -25,6 +25,7 @@ Usage: ./proxyproto-server [OPTION]...
 
   --listen-port=PORT  set listen port
   --log-level=LEVEL   set log level, 0-debug,1-info,2-warn,3-error
+  --ipv6=1 enable ipv6 listen mode
 
 $ ./proxyproto-server --listen-port=8889
 2022-07-01 11:18:42 [I] server start at port 8889

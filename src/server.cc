@@ -91,7 +91,12 @@ int Server::Start() {
       break;
     }
 
-    listen_sockfd_ = socket(AF_INET, SOCK_STREAM, 0);
+    if (conf_->ip_v6) {
+      listen_sockfd_ = socket(AF_INET6, SOCK_STREAM, 0);
+    } else {
+      listen_sockfd_ = socket(AF_INET, SOCK_STREAM, 0);
+    }
+    
     if (listen_sockfd_ == -1) {
       err = -3;
       break;
@@ -116,13 +121,24 @@ int Server::Start() {
       break;
     }
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(conf_->listen_port);
-    err = bind(listen_sockfd_, reinterpret_cast<struct sockaddr*>(&addr),
-               sizeof(addr));
+    if (conf_->ip_v6) {
+      struct sockaddr_in6 addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.sin6_family = AF_INET6;
+      addr.sin6_addr = in6addr_any;
+      addr.sin6_port = htons(conf_->listen_port);
+      err = bind(listen_sockfd_, reinterpret_cast<struct sockaddr*>(&addr),
+                sizeof(addr));
+    } else {
+      struct sockaddr_in addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.sin_family = AF_INET;
+      addr.sin_addr.s_addr = htonl(INADDR_ANY);
+      addr.sin_port = htons(conf_->listen_port);
+      err = bind(listen_sockfd_, reinterpret_cast<struct sockaddr*>(&addr),
+                sizeof(addr));
+    }
+    
     if (err != 0) {
       err = -6;
       break;
@@ -282,9 +298,30 @@ void Server::OnConnEvt(Conn* conn, int events) {
       int ret =
           DecodeProxyProto(conn->ibuf.data(), conn->ibuf.size(), &src, &dst);
       if (ret > 0) {
-        LOGI("%s proxy: %s -> %s", conn->cname(), src.ToAddrPort().c_str(),
-             dst.ToAddrPort().c_str());
-        conn->state = kDisconnected;
+        const char* content = conn->ibuf.data();
+
+        if (content[13] == '\x11') {  // ipv4
+          LOGI("%s proxy: %s -> %s , content:%s", conn->cname(), src.ToAddrPort().c_str(),
+              dst.ToAddrPort().c_str(), &content[28]);
+          const char* echo = &content[28];
+          LOGI("%s echo: %s -> %s , content:%s", conn->cname(), dst.ToAddrPort().c_str(), 
+              src.ToAddrPort().c_str(), echo);
+          EnableWriting(conn);
+          conn->obuf = echo;
+          conn->obuf.append("\n");
+        } else if (content[13] == '\x21'){ // ipv6
+           LOGI("%s proxy: %s -> %s , content:%s", conn->cname(), src.ToAddrPort().c_str(),
+             dst.ToAddrPort().c_str(), &content[52]);
+           const char* echo = &content[52];
+           LOGI("%s echo: %s -> %s , content:%s", conn->cname(), dst.ToAddrPort().c_str(), 
+                src.ToAddrPort().c_str(), echo);
+           EnableWriting(conn);
+           conn->obuf = echo;
+           conn->obuf.append("\n");
+        }
+
+        
+
       } else if (ret == 0) {
         // continue
       } else {
@@ -301,11 +338,18 @@ void Server::OnConnEvt(Conn* conn, int events) {
   if (events & POLLOUT) {
     // writable
     if (!conn->obuf.empty()) {
-      //
+      int ret = send(conn->sockfd, conn->obuf.c_str(), strlen(conn->obuf.c_str()), 0);
+      if(ret < 0){
+        LOGW("%s send err %s", conn->cname(), strerror(errno));
+      }
+
+      shutdown(conn->sockfd, 0);
+      conn->obuf = "";
     }
 
     if (conn->obuf.empty()) {
       DisableWriting(conn);
+      conn->state = kDisconnected;
     }
   }
 }

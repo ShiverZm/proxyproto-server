@@ -19,6 +19,7 @@
 
 #define OPTIND_LISTEN_PORT 0x1
 #define OPTIND_LOG_LEVEL 0x2
+#define OPTIND_IP_V6 0x3
 
 int ShowHelp(int argc, char** argv) {
   static struct {
@@ -50,6 +51,7 @@ int LoadConf(int argc, char** argv, Conf* conf) {
   static struct option long_options[] = {
       {"listen-port", required_argument, nullptr, OPTIND_LISTEN_PORT},
       {"log-level", required_argument, nullptr, OPTIND_LOG_LEVEL},
+      {"ipv6", optional_argument, nullptr, OPTIND_IP_V6},
       {0, 0, 0, 0},
   };
 
@@ -66,6 +68,10 @@ int LoadConf(int argc, char** argv, Conf* conf) {
       case OPTIND_LOG_LEVEL:
         required_mask &= ~opt;
         conf->log_level = atoi(optarg);
+        break;
+      case OPTIND_IP_V6:
+        required_mask &= ~opt;
+        conf->ip_v6 = atoi(optarg);
         break;
       default:
         return -2;

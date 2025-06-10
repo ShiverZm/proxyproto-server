@@ -14,6 +14,7 @@
 struct Conf {
   int listen_port;
   int log_level;
+  int ip_v6;
 };
 
 int LoadConf(int argc, char** argv, Conf* conf);
